@@ -1,0 +1,21 @@
+[package]
+name = "fdeb-rs"
+version = "0.1.0"
+authors = ["Ricardo Pieper <ricardopieper@live.com>"]
+edition = "2018"
+
+[profile.release]
+debug = true
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+roxmltree = "0.7.1"
+rayon = "1.1"
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "fdeb_perf"
+harness = false

@@ -1,0 +1,59 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+  	<title>FDEB Example</title>
+
+		<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+		<script src="https://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+	</head>
+
+	<body>
+		<div id="svg">
+		</div>
+	<script>
+	$(function(){
+		d3.json("result.json", function(results) {
+ 
+            let edges = results.edges;
+            let nodes = results.nodes;
+
+            var svg = d3.select("#svg").append("svg")
+                .attr("width", 1000)
+                .attr("height", 600);
+
+            svg = svg.append('g');
+                svg.append('rect').attr({'fill': '#111155', 'width': 1000, 'height':600});
+                svg.attr('transform', 'translate(20, 20)');
+            
+
+            var d3line = d3.svg.line()
+                            .x(function(d){return d.x;})
+                            .y(function(d){return d.y;})
+                            .interpolate("linear");
+            //plot the data
+            for(var i = 0; i < edges.length; i++){
+                svg.append("path").attr("d", d3line(edges[i]))
+                    .style("stroke-width", 0.5)
+                    .style("stroke", "#ff2222")
+                    .style("fill", "none")
+                    .style('stroke-opacity',0.15);
+            }
+
+            //draw nodes
+            svg.selectAll('.node')
+            .data(d3.entries(nodes))
+            .enter()
+            .append('circle')
+            .classed('node', true)
+            .attr({'r': 2, 'fill':'#ffee00'})
+            .attr('cx', function(d){ return d.value.x;})
+            .attr('cy', function(d){ return d.value.y;});
+
+
+		});
+    })
+	</script>
+	</body>
+</html>
