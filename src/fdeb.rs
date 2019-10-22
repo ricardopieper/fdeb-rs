@@ -215,7 +215,6 @@ impl Fdeb {
     ) -> impl Iterator<Item = Vertex2D> + 'a {
         let edge_subdivisions = &subdivision_points_for_edges[e_idx];
         let k_p = K / (self.edge_length(&self.edges[e_idx]) * (p as Float + 1.0));
-
         (1..=p).map(move |i| {
             self.compute_forces_on_point(
                 e_idx,
@@ -268,60 +267,48 @@ impl Fdeb {
                 .par_iter_mut()
                 .zip(self.edges.par_iter());
 
-            let deferred_set: Vec<_> = edge_subdivs
-                .map(|(subdivisions, edge)| {
-                    let divided_edge_length =
-                        self._compute_divided_edge_length_approx(subdivisions);
-                    let segment_length = divided_edge_length / (p + 1) as Float;
-                    let mut current_segment_length = segment_length;
+            edge_subdivs.for_each(|(subdivisions, edge)| {
+                let divided_edge_length = self.compute_divided_edge_length(subdivisions);
+                let segment_length = divided_edge_length / (p + 1) as Float;
+                let mut current_segment_length = segment_length;
 
-                    let mut new_subdivision_points =
-                        Vec::<Vertex2D>::with_capacity(subdivisions.len() + 2);
-                    new_subdivision_points.push(self.vertices[edge.source].clone());
+                let mut new_subdivision_points =
+                    Vec::<Vertex2D>::with_capacity(subdivisions.len() * 2);
 
-                    for i in 1..subdivisions.len() {
-                        let subdivision = &subdivisions[i];
-                        let prev_subdivision = &subdivisions[i - 1];
+                new_subdivision_points.push(self.vertices[edge.source].clone());
 
-                        let mut old_segment_length =
-                            self.euclidean_distance(subdivision, prev_subdivision);
+                for i in 1..subdivisions.len() {
+                    let subdivision = &subdivisions[i];
+                    let prev_subdivision = &subdivisions[i - 1];
 
-                        let subdiv_points = std::iter::from_fn(|| {
-                            if old_segment_length <= current_segment_length {
-                                None
-                            } else {
-                                let percent_position = current_segment_length / old_segment_length;
-                                let mut new_subdivision_point_x = prev_subdivision.x;
-                                let mut new_subdivision_point_y = prev_subdivision.y;
+                    let mut old_segment_length =
+                        self.euclidean_distance(subdivision, prev_subdivision);
 
-                                new_subdivision_point_x +=
-                                    percent_position * (subdivision.x - prev_subdivision.x);
-                                new_subdivision_point_y +=
-                                    percent_position * (subdivision.y - prev_subdivision.y);
+                    while old_segment_length > current_segment_length {
+                        let percent_position = current_segment_length / old_segment_length;
+                        let mut new_subdivision_point_x = prev_subdivision.x;
+                        let mut new_subdivision_point_y = prev_subdivision.y;
 
-                                old_segment_length -= current_segment_length;
-                                current_segment_length = segment_length;
+                        new_subdivision_point_x +=
+                            percent_position * (subdivision.x - prev_subdivision.x);
+                        new_subdivision_point_y +=
+                            percent_position * (subdivision.y - prev_subdivision.y);
 
-                                Some(Vertex2D {
-                                    x: new_subdivision_point_x,
-                                    y: new_subdivision_point_y,
-                                })
-                            }
+                        old_segment_length -= current_segment_length;
+                        current_segment_length = segment_length;
+
+                        new_subdivision_points.push(Vertex2D {
+                            x: new_subdivision_point_x,
+                            y: new_subdivision_point_y,
                         });
-
-                        new_subdivision_points.extend(subdiv_points.collect::<Vec<Vertex2D>>());
-
-                        current_segment_length -= old_segment_length;
                     }
-                    new_subdivision_points.push(self.vertices[edge.target].clone());
 
-                    (subdivisions, new_subdivision_points)
-                })
-                .collect();
+                    current_segment_length -= old_segment_length;
+                }
+                new_subdivision_points.push(self.vertices[edge.target].clone());
 
-            for (subdivs, new_subdivs) in deferred_set {
-                *subdivs = new_subdivs;
-            }
+                *subdivisions = new_subdivision_points;
+            })
         }
     }
 
