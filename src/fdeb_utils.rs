@@ -2,7 +2,7 @@
 use crate::fdeb::*;
 use std::fs::File;
 use std::io::prelude::*;
-
+use serde::Deserialize;
 pub fn read_graphml(file: &str) -> (Vec<Vertex2D>, Vec<Edge>) {
     use roxmltree::*;
 
@@ -56,6 +56,25 @@ pub fn read_graphml(file: &str) -> (Vec<Vertex2D>, Vec<Edge>) {
         .collect();
 
     (points, edges)
+}
+
+pub fn read_json(file: &str) -> (Vec<Vertex2D>, Vec<Edge>) {
+    
+    #[derive(Deserialize)]
+    struct Format {
+        nodes: Vec<Vertex2D>,
+        edges: Vec<Edge>
+    }
+
+    let mut json_str = String::new();
+    File::open(file)
+        .unwrap()
+        .read_to_string(&mut json_str)
+        .unwrap();
+
+    let deserialized: Format = serde_json::from_str(&json_str).unwrap();
+    
+    (deserialized.nodes, deserialized.edges)
 }
 
 pub fn domain_transform(

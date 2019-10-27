@@ -1,6 +1,6 @@
 use rayon::prelude::*;
 use rayon::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 pub type Float = f32;
@@ -12,17 +12,17 @@ const K: Float = 0.1; // global bundling constant controlling edge stiffness
 const COMPATIBILITY_THRESHOLD: Float = 0.6;
 const S_INITIAL: Float = 0.1; // init. distance to move points
 const P_RATE: usize = 2; // subdivision rate increase
-const C: i32 = 6; // number of cycles to perform
+const C: i32 = 8; // number of cycles to perform
 const I_INITIAL: usize = 90; // init. number of iterations for cycle
 const I_RATE: Float = 2.0 / 3.0; // rate at which iteration number decreases i.e. 2/3
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Vertex2D {
     pub x: Float,
     pub y: Float,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Edge {
     pub target: usize,
     pub source: usize,
@@ -46,6 +46,7 @@ impl Fdeb {
         p.x * q.x + p.y * q.y
     }
 
+    //
     fn edge_as_vector(&self, p: &Edge) -> Vertex2D {
         Vertex2D {
             x: self.vertices[p.target].x - self.vertices[p.source].x,
@@ -53,6 +54,7 @@ impl Fdeb {
         }
     }
 
+    //
     fn edge_length(&self, node: &Edge) -> Float {
         // handling nodes that are on the same location, so that K/edge_length != Inf
         if (self.vertices[node.source].x - self.vertices[node.target].x).abs() < EPS
@@ -64,6 +66,7 @@ impl Fdeb {
         }
     }
 
+    //
     fn edge_midpoint(&self, e: &Edge) -> Vertex2D {
         let middle_x = (self.vertices[e.source].x + self.vertices[e.target].x) / 2.0;
         let middle_y = (self.vertices[e.source].y + self.vertices[e.target].y) / 2.0;
@@ -78,6 +81,7 @@ impl Fdeb {
         ((p.x - q.x).powi(2) + (p.y - q.y).powi(2)).sqrt()
     }
 
+    //
     fn _compute_divided_edge_length_approx(
         &self,
         subdivision_points_for_edge: &[Vertex2D],
@@ -88,6 +92,7 @@ impl Fdeb {
         )
     }
 
+    //
     fn compute_divided_edge_length(&self, subdivision_points_for_edge: &[Vertex2D]) -> Float {
         let from_first = subdivision_points_for_edge.iter().skip(1);
         let zipped = from_first.zip(subdivision_points_for_edge.iter());
@@ -96,6 +101,7 @@ impl Fdeb {
             .sum()
     }
 
+    //
     fn project_point_on_line(
         &self,
         p: &Vertex2D,
@@ -114,6 +120,7 @@ impl Fdeb {
         }
     }
 
+    //
     fn initialize_edge_subdivisions(&self) -> Vec<Vec<Vertex2D>> {
         let mut subdivision_points_for_edges = Vec::<Vec<Vertex2D>>::new();
 
@@ -125,6 +132,7 @@ impl Fdeb {
         subdivision_points_for_edges
     }
 
+    //
     fn initialize_compatibility_lists(&self) -> HashMap<usize, Vec<usize>> {
         let mut compatibility_list_for_edge = HashMap::new();
         for i in 0..self.edges.len() {
@@ -134,24 +142,30 @@ impl Fdeb {
         compatibility_list_for_edge
     }
 
+    //
     fn apply_spring_force(
         &self,
         subdivision_points_for_edge: &[Vertex2D],
         i: usize,
         k_p: Float,
     ) -> Vertex2D {
-        let prev = &subdivision_points_for_edge[i - 1];
-        let next = &subdivision_points_for_edge[i + 1];
-        let crnt = &subdivision_points_for_edge[i];
-        let x = prev.x - crnt.x + next.x - crnt.x;
-        let y = prev.y - crnt.y + next.y - crnt.y;
+        if subdivision_points_for_edge.len() < 3 {
+            Vertex2D { x: 0.0, y: 0.0 }
+        } else {
+            let prev = &subdivision_points_for_edge[i - 1];
+            let next = &subdivision_points_for_edge[i + 1];
+            let crnt = &subdivision_points_for_edge[i];
+            let x = prev.x - crnt.x + next.x - crnt.x;
+            let y = prev.y - crnt.y + next.y - crnt.y;
 
-        Vertex2D {
-            x: x * k_p,
-            y: y * k_p,
+            Vertex2D {
+                x: x * k_p,
+                y: y * k_p,
+            }
         }
     }
 
+    //
     fn apply_electrostatic_force(
         &self,
         subdivision_points_for_edge: &[Vec<Vertex2D>],
@@ -159,28 +173,41 @@ impl Fdeb {
         i: usize,
         e_idx: usize,
     ) -> Vertex2D {
-        let edge = &subdivision_points_for_edge[e_idx][i];
+        if e_idx > subdivision_points_for_edge.len() - 1 ||
+            i > subdivision_points_for_edge[e_idx].len() - 1 {
+            Vertex2D { x: 0.0, y: 0.0 }
+        } else {
+            let edge = &subdivision_points_for_edge[e_idx][i];
 
-        let (x, y) = compatible_edges_list
-            .iter()
-            .map(|oe| {
-                let edge_oe = &subdivision_points_for_edge[*oe][i];
-                let force_x = edge_oe.x - edge.x;
-                let force_y = edge_oe.y - edge.y;
+            let (x, y) = compatible_edges_list
+                .iter()
+                .map(|oe| {
 
-                if (force_x.abs() > EPS) || (force_y.abs() > EPS) {
-                    let len = self.euclidean_distance(edge_oe, edge);
-                    let diff = 1.0 / len;
-                    (force_x * diff, force_y * diff)
-                } else {
-                    (0.0, 0.0)
-                }
-            })
-            .fold((0.0, 0.0), |(acc_x, acc_y), (x, y)| (acc_x + x, acc_y + y));
+                    if *oe > subdivision_points_for_edge.len() - 1 ||
+                        i > subdivision_points_for_edge[*oe].len() - 1 {
+                        (0.0, 0.0)
+                    }
+                    else {
+                        let edge_oe = &subdivision_points_for_edge[*oe][i];
+                        let force_x = edge_oe.x - edge.x;
+                        let force_y = edge_oe.y - edge.y;
 
-        Vertex2D { x, y }
+                        if (force_x.abs() > EPS) || (force_y.abs() > EPS) {
+                            let len = self.euclidean_distance(edge_oe, edge);
+                            let diff = 1.0 / len;
+                            (force_x * diff, force_y * diff)
+                        } else {
+                            (0.0, 0.0)
+                        }
+                    }
+                })
+                .fold((0.0, 0.0), |(acc_x, acc_y), (x, y)| (acc_x + x, acc_y + y));
+
+            Vertex2D { x, y }
+        }
     }
 
+    //
     fn compute_forces_on_point(
         &self,
         e_idx: usize,
@@ -205,37 +232,41 @@ impl Fdeb {
         }
     }
 
-    fn compute_forces_on_points_iterator<'a>(
-        &'a self,
+    //
+    fn compute_forces_on_points_iterator(
+        &self,
         e_idx: usize,
         p: usize,
         s: Float,
-        subdivision_points_for_edges: &'a [Vec<Vertex2D>],
-        compatible_edges_list: &'a [usize],
-    ) -> impl Iterator<Item = Vertex2D> + 'a {
+        subdivision_points_for_edges: &[Vec<Vertex2D>],
+        compatible_edges_list: &[usize],
+    ) -> Vec<Vertex2D> {
         let edge_subdivisions = &subdivision_points_for_edges[e_idx];
         let k_p = K / (self.edge_length(&self.edges[e_idx]) * (p as Float + 1.0));
-        (1..=p).map(move |i| {
-            self.compute_forces_on_point(
-                e_idx,
-                s,
-                i,
-                k_p,
-                subdivision_points_for_edges,
-                edge_subdivisions,
-                compatible_edges_list,
-            )
-        })
+        (1..=p)
+            .map(move |i| {
+                self.compute_forces_on_point(
+                    e_idx,
+                    s,
+                    i,
+                    k_p,
+                    subdivision_points_for_edges,
+                    edge_subdivisions,
+                    compatible_edges_list,
+                )
+            })
+            .collect()
     }
 
-    fn apply_resulting_forces_on_subdivision_points<'a>(
-        &'a self,
+    //
+    fn apply_resulting_forces_on_subdivision_points(
+        &self,
         e_idx: usize,
         p: usize,
         s: Float,
-        subdivision_points_for_edges: &'a [Vec<Vertex2D>],
-        compatible_edges_list: &'a [usize],
-    ) -> impl Iterator<Item = Vertex2D> + 'a {
+        subdivision_points_for_edges: &[Vec<Vertex2D>],
+        compatible_edges_list: &[usize],
+    ) -> Vec<Vertex2D> {
         self.compute_forces_on_points_iterator(
             e_idx,
             p,
@@ -245,6 +276,7 @@ impl Fdeb {
         )
     }
 
+    //
     fn update_edge_divisions(
         &self,
         p: usize,
@@ -385,23 +417,29 @@ impl Fdeb {
         &self,
         compatibility_list_for_edge: &mut HashMap<usize, Vec<usize>>,
     ) {
-        for e in 0..self.edges.len() - 1 {
-            for oe in e + 1..self.edges.len() {
-                // don't want any duplicates
-                if self.are_compatible(&self.edges[e], &self.edges[oe]) {
-                    {
-                        let vec_e = compatibility_list_for_edge.get_mut(&e).unwrap();
-                        vec_e.push(oe);
-                    }
-                    {
-                        let vec_oe = compatibility_list_for_edge.get_mut(&oe).unwrap();
-                        vec_oe.push(e);
-                    }
+        (0..self.edges.len() - 1)
+            .into_par_iter()
+            .flat_map(|e| {
+                (e + 1..self.edges.len())
+                    .into_par_iter()
+                    .filter(move |oe| self.are_compatible(&self.edges[e], &self.edges[*oe]))
+                    .map(move |oe| (e, oe))
+            })
+            .collect::<Vec<(usize, usize)>>()
+            .iter()
+            .for_each(|(e, oe)| {
+                {
+                    let vec_e = compatibility_list_for_edge.get_mut(&e).unwrap();
+                    vec_e.push(*oe);
                 }
-            }
-        }
+                {
+                    let vec_oe = compatibility_list_for_edge.get_mut(&oe).unwrap();
+                    vec_oe.push(*e);
+                }
+            })
     }
 
+    //
     fn filter_self_loops(vertices: &[Vertex2D], edges: Vec<Edge>) -> Vec<Edge> {
         fn float_equals(x: Float, y: Float) -> bool {
             (x - y).abs() > EPSILON
@@ -418,19 +456,19 @@ impl Fdeb {
             })
             .collect()
     }
-
-    pub fn calculate_fdeb(&self) -> Vec<Vec<Vertex2D>> {
+    #[inline(never)]
+    fn do_cycles(
+        &self,
+        mut edge_subdivisions: Vec<Vec<Vertex2D>>,
+        compatibility_lists: &HashMap<usize, Vec<usize>>,
+    ) -> Vec<Vec<Vertex2D>> {
         let mut s = S_INITIAL;
         let mut i = I_INITIAL;
         let mut p = P_INITIAL;
 
-        let mut edge_subdivisions: Vec<Vec<Vertex2D>> = self.initialize_edge_subdivisions();
-        let mut compatibility_lists = self.initialize_compatibility_lists();
-        self.update_edge_divisions(p, &mut edge_subdivisions);
-        self.compute_compatibility_lists(&mut compatibility_lists);
-
         for _ in 0..C {
             for _ in 0..i {
+                //   let _ = Measure::measure(&format!("Iteration {}", iteration));
                 let forces: Vec<Vec<Vertex2D>> = (0..self.edges.len())
                     .into_par_iter()
                     .map(|edge| {
@@ -441,7 +479,6 @@ impl Fdeb {
                             &edge_subdivisions,
                             &compatibility_lists[&edge],
                         )
-                        .collect()
                     })
                     .collect();
 
@@ -452,16 +489,28 @@ impl Fdeb {
                     }
                 }
             }
-            // prepare for next cycle
             s /= 2.0;
             p *= P_RATE;
             i = (I_RATE as Float * i as Float) as usize;
 
             self.update_edge_divisions(p, &mut edge_subdivisions);
-            //console.log('C' + cycle);
-            //console.log('P' + P);
-            //console.log('S' + S);
         }
         edge_subdivisions
+    }
+
+    pub fn calculate_fdeb(&self) -> Vec<Vec<Vertex2D>> {
+        let mut edge_subdivisions: Vec<Vec<Vertex2D>> = self.initialize_edge_subdivisions();
+        let mut compatibility_lists = self.initialize_compatibility_lists();
+        self.update_edge_divisions(P_INITIAL, &mut edge_subdivisions);
+
+        //  let start = std::time::Instant::now();
+        self.compute_compatibility_lists(&mut compatibility_lists);
+        //  let elapsed = start.elapsed();
+        //println!("\n\nTime to make compatibility lists: {:?}", elapsed);
+        //   let start = std::time::Instant::now();
+        let result = self.do_cycles(edge_subdivisions, &compatibility_lists);
+        // let elapsed = start.elapsed();
+        // println!("Time to run cycles: {:?}", elapsed);
+        result
     }
 }

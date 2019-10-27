@@ -10,22 +10,44 @@ struct FdebResult {
     edges: Vec<Vec<Vertex2D>>,
     nodes: Vec<Vertex2D>,
 }
+use rand::distributions::{Distribution, Uniform};
+fn sample(edges: Vec<Edge>, percentage: f32) -> Vec<Edge> {
+
+    let mut rng = rand::thread_rng();
+    let die = Uniform::from(0.0 .. 1.0);
+
+    let mut result = vec![];
+
+    for edge in edges {
+
+        let throw = die.sample(&mut rng);
+
+        if throw < percentage {
+            result.push(edge);
+        }
+
+    }
+    
+    result
+}
 
 fn main() {
     use std::fs::File;
     use std::io::prelude::*;
 
-    let (points, edges) = fdeb_utils::read_graphml("airlines.xml");
-    let rescaled = fdeb_utils::rescale(fdeb_utils::abs(&points), 900.0, 50.0, 460.0, 50.0);
+    let (points, edges) = fdeb_utils::read_json("...");
+
+    let edges = sample(edges, 0.03);
+
+    println!("Loaded {} points and {} edges", points.len(), edges.len());
+
+    let rescaled = fdeb_utils::rescale(fdeb_utils::abs(&points),
+        1050.0, 50.0, 
+        50.0, 1050.0);
+
     let rescaled_clone = (&rescaled).clone();
     let fdeb = Fdeb::new(rescaled, edges);
 
-    for _ in 0..20 {
-        let start = std::time::Instant::now();
-        let result = fdeb.calculate_fdeb();
-        let elapsed = start.elapsed();
-        println!("Time to compute: {:?}", elapsed);
-    }
     let start = std::time::Instant::now();
     let result = fdeb.calculate_fdeb();
     let elapsed = start.elapsed();

@@ -12,7 +12,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 let fdeb = Fdeb::new(rescaled, edges);
                 b.iter(|| fdeb.calculate_fdeb())
             }, 0..1)
-        .sample_size(25));
+        .sample_size(15));
 }
 
 criterion_group!(benches, criterion_benchmark);
