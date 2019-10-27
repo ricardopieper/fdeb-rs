@@ -173,8 +173,9 @@ impl Fdeb {
         i: usize,
         e_idx: usize,
     ) -> Vertex2D {
-        if e_idx > subdivision_points_for_edge.len() - 1 ||
-            i > subdivision_points_for_edge[e_idx].len() - 1 {
+        if e_idx > subdivision_points_for_edge.len() - 1
+            || i > subdivision_points_for_edge[e_idx].len() - 1
+        {
             Vertex2D { x: 0.0, y: 0.0 }
         } else {
             let edge = &subdivision_points_for_edge[e_idx][i];
@@ -182,12 +183,11 @@ impl Fdeb {
             let (x, y) = compatible_edges_list
                 .iter()
                 .map(|oe| {
-
-                    if *oe > subdivision_points_for_edge.len() - 1 ||
-                        i > subdivision_points_for_edge[*oe].len() - 1 {
+                    if *oe > subdivision_points_for_edge.len() - 1
+                        || i > subdivision_points_for_edge[*oe].len() - 1
+                    {
                         (0.0, 0.0)
-                    }
-                    else {
+                    } else {
                         let edge_oe = &subdivision_points_for_edge[*oe][i];
                         let force_x = edge_oe.x - edge.x;
                         let force_y = edge_oe.y - edge.y;
@@ -483,9 +483,13 @@ impl Fdeb {
                     .collect();
 
                 for edge in 0..self.edges.len() {
+                    let subdiv = &mut edge_subdivisions[edge];
+                    let edge_forces = &forces[edge];
                     for ii in 0..p {
-                        edge_subdivisions[edge][ii + 1].x += forces[edge][ii].x;
-                        edge_subdivisions[edge][ii + 1].y += forces[edge][ii].y;
+                        if subdiv.len() - 1 > ii + 1 &&  edge_forces.len() > ii {
+                            subdiv[ii + 1].x += edge_forces[ii].x;
+                            subdiv[ii + 1].y += edge_forces[ii].y;
+                        }
                     }
                 }
             }

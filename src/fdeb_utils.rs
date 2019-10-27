@@ -119,6 +119,26 @@ pub fn rescale(
         .collect()
 }
 
+
+pub fn abs_translate(raw_points: Vec<Vertex2D>) -> Vec<Vertex2D> {
+    let mut all_x: Vec<Float> = raw_points.iter().map(|x| x.x).collect();
+    all_x.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+
+    let mut all_y: Vec<Float> = raw_points.iter().map(|x| x.y).collect();
+    all_y.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+
+    let min_x = all_x[0];
+    let min_y = all_y[0];
+
+    raw_points
+        .iter()
+        .map(|x: &Vertex2D| Vertex2D {
+            x: (x.x + min_x).abs(),
+            y: (x.y + min_y).abs(),
+        })
+        .collect()
+}
+
 pub fn abs(raw_points: &[Vertex2D]) -> Vec<Vertex2D> {
     raw_points
         .iter()

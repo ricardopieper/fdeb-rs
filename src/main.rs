@@ -1,4 +1,5 @@
 use fdeb_rs::fdeb_utils;
+use fdeb_rs::fdeb_svg;
 use fdeb_rs::{Edge, Fdeb, Vertex2D};
 use serde::Serialize;
 use std::collections::HashMap;
@@ -35,13 +36,13 @@ fn main() {
     use std::fs::File;
     use std::io::prelude::*;
 
-    let (points, edges) = fdeb_utils::read_json("...");
+    let (points, edges) = fdeb_utils::read_json("br-migration.json");
 
     let edges = sample(edges, 0.03);
 
     println!("Loaded {} points and {} edges", points.len(), edges.len());
 
-    let rescaled = fdeb_utils::rescale(fdeb_utils::abs(&points),
+    let rescaled = fdeb_utils::rescale(fdeb_utils::abs_translate(points),
         1050.0, 50.0, 
         50.0, 1050.0);
 
@@ -52,12 +53,16 @@ fn main() {
     let result = fdeb.calculate_fdeb();
     let elapsed = start.elapsed();
     println!("Time to compute: {:?}", elapsed);
-
-    let serialized = serde_json::to_string(&FdebResult {
+    
+    
+    /*let serialized = serde_json::to_string(&FdebResult {
         edges: result,
         nodes: rescaled_clone.clone(),
     })
     .unwrap();
     let mut file = File::create("result.json").unwrap();
-    file.write_all(serialized.as_bytes()).unwrap();
+    file.write_all(serialized.as_bytes()).unwrap();*/
+
+    fdeb_svg::render(&result, &rescaled_clone, "assets/template-brazil.svg",  "assets/style.css");
+
 }

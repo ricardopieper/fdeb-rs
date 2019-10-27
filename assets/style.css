@@ -1,0 +1,18 @@
+.lines path {
+    stroke-width: 0.1px; 
+    stroke: url('#linearGradient'); 
+    fill: none; 
+    stroke-opacity: 0.09;
+}
+
+.cities circle {
+    opacity: 0.2;
+    fill: #00AA44 
+}
+
+path.state, .state path {
+    fill: #000510;
+    stroke: #888888; 
+    stroke-width: 0.35;
+    stroke-opacity: 0.5
+}
